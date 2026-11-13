@@ -1,13 +1,15 @@
 # Proposal: tests for CPU under load, focus, hidden threads, idle agents and request overhead
 
-Status: draft. The method changes below need the issue first (METHODOLOGY.md §5, CONTRIBUTING.md).
+Status: draft. A method change needs an issue first (CONTRIBUTING.md, Pull requests). Terms such as night, gate,
+rehearsal, top-up and family are defined in METHODOLOGY.md §2 and §6 and TESTS.md §1.
 
 ## 1. Issue text
 
 **Title:** Method: measure CPU under load, focus state, hidden threads, idle agents and per-request overhead
 
-**What changes.** Seven additions to Track A and Track B. Four are new rows computed from samples or captures the
-harness already takes. Two are new tests that run only as pilots. One is a spec for a later profile field.
+**What changes.** Seven additions to Track A and Track B. Three are new rows computed from samples or captures the
+harness already takes (items 1, 5, 6). Two are new tests that run only as pilots (items 2, 3). Two are specs with no
+code yet (items 4, 7).
 
 | # | Change | Kind | Extra time per app |
 |---|---|---|---|
@@ -37,10 +39,14 @@ harness already takes. Two are new tests that run only as pilots. One is a spec 
 
 **Fairness.** Every addition applies to every app the same way. New rows use the Bare CLI as their reference line,
 like every other row. Pilot tests are never ranked until the pilot proves them. No existing row, step, window or
-order changes: a dry run of `bare-cli` on Tracks A and B writes the same 110 rows with the same values and the same
-instrument calls as `main`.
+order changes: a dry run of `bare-cli` on Tracks A and B writes the 110 rows of `main` with the same values and the
+same instrument calls, plus 8 new rows (4 for A7, 3 for A10, 1 for B2).
 
-**What it does not change.** Existing test methods, windows, run order, validity rules, gates, top-ups and the site.
+**What it does not change.** Existing test methods, windows, run order, validity rules, gates and top-ups. The code
+does not touch the site; §2.5 proposes label text for the maintainer to decide.
+
+**When a pilot is proven.** A pilot test enters the night and the site after it gives valid rows on at least 3 apps of
+different families on the reference machine, its pilot checks (marked below) pass, and the maintainer accepts it.
 
 ## 2. Test specs
 
@@ -135,7 +141,8 @@ Both windows and the switch end inside one 3-minute stream, also for an app that
 Values: `front-cpu`, `front-wakeups`, `front-energy`, `front-agents-cpu`, the same four for `background`, and
 `agent-count`. The finding is `background-cpu` against `front-cpu` of the same app, with `agents-cpu` equal in both.
 
-Validity: as A7. Each window needs 5 agents for 150/180 of its ticks. Every stream must reach the replay server. No
+Validity: as A7. Each window needs 5 live agent processes in at least 5/6 of its ticks (A7's 150 s of 180 s, applied
+to 45 s). Every stream must reach the replay server. No
 stream may end before the background window does (from the replay log). `background` rows are invalid when the marker
 never shows.
 
@@ -147,7 +154,8 @@ Purpose: does the app end idle agent sessions, and when.
 
 Reuses: A10's 20 threads, the A5 `agents` and `agent-count` computation, and the background sampler of Track C.
 
-Preconditions: A10 has just finished and its streams have ended (A7's drain rule). No input for the whole window.
+Preconditions: the app holds 20 threads, as after A10. In its own late step the app is launched, seeded with 20
+threads as A10 does, and left until every seed turn has ended. No input for the whole window.
 
 Steps:
 
@@ -167,7 +175,8 @@ Validity: invalid if any agent process used CPU above 0.05 core for more than 10
 idle), or if swap grew.
 
 Where it runs: 45 minutes per app is too long for the Track A block. It runs as its own late step, like tokens and
-orchestration (METHODOLOGY.md §6), or only with `--tests A15`. The total runtime is bounded at 50 minutes per app.
+orchestration (METHODOLOGY.md §6), or only with `--tests A15`. The total runtime is bounded at 50 minutes per app plus
+the seeding (about 2 minutes).
 
 Receipt: `samples.csv` at 1 Hz, `minutes.json`.
 
@@ -180,7 +189,7 @@ because of the agents it keeps.
 |---|---|---|---|---|
 | A5 | `app` | `agents` | `total` | `agent-count` |
 | A7 | `app-p95` | `agents-p95` | `total-p95` | `agent-count` |
-| A9 | the sum of everything left | | | process list |
+| A9 | | | the sum of everything left after quit | (a process list, not a count) |
 | A10 | `rest-20` | `rest-20-agents` (new) | `rest-20-total` (new) | `rest-20-agent-count` (new) |
 | A12 | `app` slope | | | |
 
@@ -201,7 +210,9 @@ of five count requests. The difference does not.
 
 **Cache across B1 reps.** B1 already writes `cache-write` and `cache-read` per repetition, and the three reps open
 new threads within 5 minutes. An app whose request prefix is stable writes the cache once and reads it after. An app
-that puts a time, an id or a path into its prefix writes it again for every thread, which costs more than its size.
+that puts a time, an id or a path into its prefix writes it again for every thread. A cache write is priced above
+fresh input and far above a cache read (`prices/2026-10.json`), so this changes cost more than the prefix size does.
+Three reps 30 s apart stay inside the 5-minute cache lifetime.
 The rows hold this today; the summary median hides it. Proposal (presentation only): the report shows `cache-write` of
 rep 1 next to the median of reps 2 and 3, for each app and the Bare CLI. No new measurement.
 
@@ -226,8 +237,9 @@ Proposed profile field:
 ```
 
 With it, A3 `other-mode`, A4, A7's CPU rows and A8 run once more on the other surface, with variant names prefixed
-`other-` (A4 `other-total`, `other-before-request`, `other-on-screen`; A8 `other-p95`). A4 keeps its split:
-`before-request` is the time to build and send the request, `on-screen` the time to render the first word. Other
+`other-` (A4 `other-total`, `other-before-request`, `other-on-screen`; A8 `other-p95`). A4 keeps the split of TESTS.md
+A4, which the harness already writes as the rows `before-request` (Enter to request received) and `on-screen` (request
+received to the first word on screen). Other
 surfaces are reported apart and not ranked, as A3 `other-mode`.
 
 Runtime cost: A4 6 to 10 runs, A8 one 5-stream window, per extra surface.
