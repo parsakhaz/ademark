@@ -45,6 +45,9 @@ same instrument calls, plus 8 new rows (4 for A7, 3 for A10, 1 for B2).
 **What it does not change.** Existing test methods, windows, run order, validity rules, gates and top-ups. The code
 does not touch the site; §2.5 proposes label text for the maintainer to decide.
 
+**Disclosure.** The proposer builds Pane, one of the ADEs this benchmark measures. Items 2 and 6 measure focus-idle CPU
+and per-request tokens, both of which Pane recently improved.
+
 **When a pilot is proven.** A pilot test enters the night and the site after it gives valid rows on at least 3 apps of
 different families on the reference machine, its pilot checks (marked below) pass, and the maintainer accepts it.
 
@@ -175,7 +178,8 @@ Validity: invalid if any agent process used CPU above 0.05 core for more than 10
 idle), or if swap grew.
 
 Where it runs: 45 minutes per app is too long for the Track A block. It runs as its own late step, like tokens and
-orchestration (METHODOLOGY.md §6), or only with `--tests A15`. The total runtime is bounded at 50 minutes per app plus
+orchestration (METHODOLOGY.md §6)? This proposal says no: it runs only with `--tests A15`, like the pilots, and never in
+a night, Control, gate or rehearsal. The total runtime is bounded at 50 minutes per app plus
 the seeding (about 2 minutes).
 
 Receipt: `samples.csv` at 1 Hz, `minutes.json`.
@@ -246,9 +250,7 @@ Runtime cost: A4 6 to 10 runs, A8 one 5-stream window, per extra surface.
 
 ## 3. Open questions for the maintainer
 
-1. A13 and A14 run after A1 so no earlier test changes. Is that the right place, or should they move into the order
-   once proven?
-2. A10's rest window starts after 15 seed turns. A8's five 3-minute streams can still run then on an app that seeds
+1. A10's rest window starts after 15 seed turns. A8's five 3-minute streams can still run then on an app that seeds
    fast. Should A10 wait for them, as A7 waits for longer streams? This proposal does not change it.
-3. Which A7 memory key is the headline: `app-p95` (TESTS.md) or `total-p95` (the site)?
-4. A15 runs 45 minutes. A late step, or `--tests` only?
+2. Which memory key is the headline? TESTS.md calls A7 `app-p95` the headline, and A5 `app`, while the site ranks
+   `A7/total-p95` and `A5/total`. The two give different orders for apps that keep one agent per thread.
