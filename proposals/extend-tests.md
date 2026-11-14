@@ -177,9 +177,8 @@ Values:
 Validity: invalid if any agent process used CPU above 0.05 core for more than 10 s in a row (an agent at work is not
 idle), or if swap grew.
 
-Where it runs: 45 minutes per app is too long for the Track A block. It runs as its own late step, like tokens and
-orchestration (METHODOLOGY.md §6)? This proposal says no: it runs only with `--tests A15`, like the pilots, and never in
-a night, Control, gate or rehearsal. The total runtime is bounded at 50 minutes per app plus
+Where it runs: 45 minutes per app is too long for the Track A block, so it runs only with `--tests A15`, like the
+pilots, and never in a night, Control, gate or rehearsal. The total runtime is bounded at 50 minutes per app plus
 the seeding (about 2 minutes).
 
 Receipt: `samples.csv` at 1 Hz, `minutes.json`.
