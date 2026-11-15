@@ -16,10 +16,10 @@ code yet (items 4, 7).
 | 1 | A7 also publishes app CPU, wakeups and energy, and agents CPU | new rows, same window | none |
 | 2 | A13 Focus Idle: CPU at rest with the composer focused, then with focus moved off it | pilot test | 3 to 13 min |
 | 3 | A14 Background Streams: CPU while 5 agents stream, streaming thread in front, then an idle one | pilot test | about 2 min |
-| 4 | A15 Idle Release: agent memory and count over 45 min of rest after A10 | spec only | 45 min |
-| 5 | A10 also publishes the agents and the total of its rest window | new rows, same window | none |
+| 4 | A15 Idle Release: agent memory and count over 45 min of rest after A10 | spec only | 45 min, only when named with `--tests A15` |
+| 5 | A10 also publishes agent memory, agent count and the total of its rest window | new rows, same window | none |
 | 6 | B2 also publishes `total`, the sum of its segments | new row, same counts | none |
-| 7 | A4, A8 and the CPU rows per surface, when an app offers more than one | spec only | depends on the app |
+| 7 | A4, A8 and the CPU rows measured on each surface of apps with both a chat view and a terminal view | spec only | depends on the app |
 
 **Why.**
 
