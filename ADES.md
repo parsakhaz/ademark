@@ -82,7 +82,7 @@ Every adapter implements the same nine methods. The defaults below apply unless 
 
 ### 2.2 EL-SDK: Electron app that drives the agent through an SDK or a JSON protocol
 
-Members: T3 Code, bb, Paseo, Synara, Traycer, Cloudroom.
+Members: T3 Code, bb, Paseo, Synara, Traycer, Cloudroom, Pane.
 
 - Processes: the Electron main process, `Helper (Renderer)`, `Helper (GPU)` and other helpers inside the bundle,
   plus a local Node server or daemon. Some daemons detach or run under launchd, so the process tree alone is not enough.
@@ -816,6 +816,46 @@ Adapter `codex-app`:
 | `quit` | default |
 | `processes` | unknown, find in pilot |
 
+### 3.18 Pane
+
+| Field | Value |
+|---|---|
+| Adapter ID | `pane` (`bench/adapters/pane.ts`) |
+| Maker, URL, license | Dcouple Inc, https://runpane.com, github.com/greenfield-inc/Pane, AGPL-3.0 |
+| Version | 2.4.221, released 2026-11-15. Electron 43.8.3 |
+| Download | https://github.com/greenfield-inc/Pane/releases/download/v2.4.221/Pane-2.4.221-macOS-arm64.dmg, SHA-256 `2168bb0dd9c961bed4f11ef7fc66a936c91f4cd9938cd92849d2c98ce02a54d7`. Main binary `Contents/MacOS/Pane` SHA-256 `2d995672c2f1ab9263b32fed91fad91f27f1de71a3f4ccd38a7572ccb983d980` |
+| On bench Mac | no |
+| Family | EL-SDK: a fresh install opens Claude as a chat tab. Terminal agent tabs (EL-PTY) are one menu entry away |
+| Bundle | `com.dcouple.pane`, executable `Pane`, Team ID `FBM5YSF467` |
+| Data to move aside | `~/.pane` (`PANE_DIR` overrides it: `config.json`, `sessions.db`) and the Electron userData folder `~/Library/Application Support/Pane` |
+| Processes | Electron set (`Pane`, `Pane Helper`, GPU, Plugin, Renderer). node-pty runs in the main process on macOS. No launch agent in normal use |
+| Claude runs via | chat tab (factory default for new installs, `chatTabsEnabled`): the bundled `@agentclientprotocol/claude-agent-acp` 0.100.0 running the system `claude`, which must be 2.1.316 or newer. Terminal tab: `claude --dangerously-skip-permissions` typed into the shell after its first prompt |
+| Codex runs via | chat tab: bundled `@agentclientprotocol/codex-acp` running `codex` 0.165.0 or newer. Terminal tab: `codex --yolo` |
+| Adds to context | the `pane` skill and a short `pane-notify` block in the user instruction files, and the `pane` MCP server (Pane's runpane tools). The repository `AGENTS.md` block is off by default |
+| Writes global config | at every launch: `~/.claude/skills/pane`, `~/.agents/skills/pane`, a block in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, the `pane` MCP server in `~/.claude.json` (through `claude mcp add`), `~/.codex/config.toml` and `~/.cursor/mcp.json` when Cursor is installed, and a `pane-runpane-path` block in `~/.zshenv`. A login item while "Start Pane when you log in" is on (factory default on; the bench seed turns it off) |
+| Pin | model and effort explicit; full access (chat mode `bypassPermissions`); product analytics off (Settings > Privacy); "Check for updates automatically" off (Settings > General) |
+| Side calls (B1) | unknown, find in pilot. An install heartbeat to Pane's analytics host ignores the analytics toggle; only `DO_NOT_TRACK=1` or `RUNPANE_TELEMETRY_DISABLED` in the app's environment stops it |
+| New thread (A3) | Cmd+T opens the new tab menu with Claude chat first, then Enter (from source, find timing in pilot). A new Pane is a new worktree: time it apart |
+| Orchestration (C1) | Pane Sessions: an orchestrator agent opens worker Panes, each its own worktree and agent, with `runpane panes create`. Trigger line: find in pilot |
+| Drive (setup) | `runpane` CLI (written to `~/.pane/bin/runpane` at startup) and the `pane` MCP server. No CDP needed |
+| Traps | opens on Home with no composer at every launch and starts no agent until a Pane is opened. A1 and A2 are excluded: a relaunch does not restore the last Pane, and a `pane://` link in the launch arguments is dropped before the renderer listens (checked on 2.4.221); chat tabs refuse Claude Code older than 2.1.316; the MCP entry in `~/.claude.json` outlives the block |
+| Verify in pilot | composer and thread regions; the seed files; whether a new chat shows Opus 5.5, high effort and bypass permissions; whether the ACP chat writes a session log under the arena cwd |
+| Local only | No remote machines, SSH hosts or Workspaces. Check: `runpane panes list --json` shows the arena Pane on this Mac |
+
+Adapter `pane`:
+
+| Method | How |
+|---|---|
+| `installCheck` | version 2.4.221 and the main binary SHA-256 |
+| `reset` | default; `~/.pane` and `~/Library/Application Support/Pane` |
+| `configure` | from the seed: analytics off, automatic updates off; model, effort and mode in the chat composer (find in pilot) |
+| `launch` | `open -b com.dcouple.pane` |
+| `newThread` | Cmd+T, Enter: a Claude chat tab in the arena Pane. Setup adopts the arena checkout as that Pane (`runpane panes adopt`) |
+| `send` | default; Enter queues or sends |
+| `waitDone` | the session log, cwd the arena |
+| `quit` | default, then `claude mcp remove pane --scope user` so later blocks do not load Pane's MCP server |
+| `processes` | Electron set plus the agent CLIs |
+
 ## 4. Summary
 
 | ADE | Adapter ID | Family | Drive for setup | C1 trigger | Top fairness traps |
@@ -838,3 +878,4 @@ Adapter `codex-app`:
 | Capy | `capy` | OWN | HTTP API, CDP | subagents, Captains (experimental) | own harness; no Claude subscription, API billing |
 | Claude desktop | `claude-desktop` | FIRST | Accessibility | subagents, session messages | shares `~/.claude` with the CLI; stack unknown |
 | Codex app | `codex-app` | FIRST | Accessibility | multi-agent (to verify) | moved into ChatGPT desktop; most facts unknown |
+| Pane | `pane` | EL-SDK | `runpane` CLI | Sessions open worker Panes (trigger to find) | opens on Home with no composer; chat needs Claude Code 2.1.316 or newer |
