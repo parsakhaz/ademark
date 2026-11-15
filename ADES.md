@@ -822,8 +822,8 @@ Adapter `codex-app`:
 |---|---|
 | Adapter ID | `pane` (`bench/adapters/pane.ts`) |
 | Maker, URL, license | Dcouple Inc, https://runpane.com, github.com/greenfield-inc/Pane, AGPL-3.0 |
-| Version | 2.4.226, released 2026-11-15. Electron 43.8.3 |
-| Download | https://github.com/greenfield-inc/Pane/releases/download/v2.4.226/Pane-2.4.226-macOS-arm64.dmg, SHA-256 `b2612a52c2247075b4a94ae7790683da8285b71c1dc3c56aff3b36aa535b045f`. Main binary `Contents/MacOS/Pane` SHA-256 `361ec6ebcbe79a65db0e85094604a9e3dafaa83c5706d44d25d1048dc426d5bc` |
+| Version | 2.4.228, released 2026-11-15. Electron 43.8.3 |
+| Download | https://github.com/greenfield-inc/Pane/releases/download/v2.4.228/Pane-2.4.228-macOS-arm64.dmg, SHA-256 `90d618c5cd827796d65050b3a9d8d5946fdba44eea85c09282afc20d713a69fc`. Main binary `Contents/MacOS/Pane` SHA-256 `3b6c8f6aa089414e537796b52154c54eaead5196818ea2caf50ff99f5ac6bbae` |
 | On bench Mac | no |
 | Family | EL-SDK: a fresh install opens Claude as a chat tab. Terminal agent tabs (EL-PTY) are one menu entry away |
 | Bundle | `com.dcouple.pane`, executable `Pane`, Team ID `FBM5YSF467` |
@@ -831,14 +831,14 @@ Adapter `codex-app`:
 | Processes | Electron set (`Pane`, `Pane Helper`, GPU, Plugin, Renderer). node-pty runs in the main process on macOS. No launch agent in normal use |
 | Claude runs via | chat tab (factory default for new installs, `chatTabsEnabled`): the bundled `@agentclientprotocol/claude-agent-acp` 0.100.0 running the system `claude`, which must be 2.1.316 or newer. Terminal tab: `claude --dangerously-skip-permissions` typed into the shell after its first prompt |
 | Codex runs via | chat tab: bundled `@agentclientprotocol/codex-acp` running `codex` 0.165.0 or newer. Terminal tab: `codex --yolo` |
-| Adds to context | the `pane` skill and a short `pane-notify` block in the user instruction files, and the `pane` MCP server (Pane's runpane tools). The repository `AGENTS.md` block is off by default |
+| Adds to context | the `pane` skill and a short `pane-notify` block in the user instruction files, and the `pane` MCP server (Pane's runpane tools); for Claude Code the server's instructions leave out what that block already says (greenfield-inc/Pane#1393). The repository `AGENTS.md` block is off by default |
 | Writes global config | at every launch: `~/.claude/skills/pane`, `~/.agents/skills/pane`, a block in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, the `pane` MCP server in `~/.claude.json` (through `claude mcp add`), `~/.codex/config.toml` and `~/.cursor/mcp.json` when Cursor is installed, and a `pane-runpane-path` block in `~/.zshenv`. A login item while "Start Pane when you log in" is on (factory default on; the bench seed turns it off) |
 | Pin | model and effort explicit; full access (chat mode `bypassPermissions`); product analytics off (Settings > Privacy); "Check for updates automatically" off (Settings > General) |
 | Side calls (B1) | unknown, find in pilot. An install heartbeat to Pane's analytics host ignores the analytics toggle; only `DO_NOT_TRACK=1` or `RUNPANE_TELEMETRY_DISABLED` in the app's environment stops it |
 | New thread (A3) | Cmd+T opens the new tab menu with Claude chat first, then Enter (from source, find timing in pilot). A new Pane is a new worktree: time it apart |
 | Orchestration (C1) | Pane Sessions: an orchestrator agent opens worker Panes, each its own worktree and agent, with `runpane panes create`. Trigger line: find in pilot |
 | Drive (setup) | `runpane` CLI (written to `~/.pane/bin/runpane` at startup) and the `pane` MCP server. No CDP needed |
-| Traps | launch reopens the last chat tab with its message box focused only when a chat tab was in front at the quit; any other last view opens on Home, which has no composer, and starts no agent until a Pane is opened. Setup leaves a chat tab in front (checked on 2.4.226). Rarely the reopened chat never takes focus (greenfield-inc/Pane#1384); chat tabs refuse Claude Code older than 2.1.316; the MCP entry in `~/.claude.json` outlives the block |
+| Traps | launch reopens the last chat tab with its message box focused only when a chat tab was in front at the quit; any other last view opens on Home, which has no composer, and starts no agent until a Pane is opened. Setup leaves a chat tab in front (checked on 2.4.228). Rarely the reopened chat never takes focus (greenfield-inc/Pane#1384); chat tabs refuse Claude Code older than 2.1.316; the MCP entry in `~/.claude.json` outlives the block |
 | Verify in pilot | composer and thread regions; the seed files; whether a new chat shows Opus 5.5, high effort and bypass permissions; whether the ACP chat writes a session log under the arena cwd |
 | Local only | No remote machines, SSH hosts or Workspaces. Check: `runpane panes list --json` shows the arena Pane on this Mac |
 
@@ -846,7 +846,7 @@ Adapter `pane`:
 
 | Method | How |
 |---|---|
-| `installCheck` | version 2.4.226 and the main binary SHA-256 |
+| `installCheck` | version 2.4.228 and the main binary SHA-256 |
 | `reset` | default; `~/.pane` and `~/Library/Application Support/Pane` |
 | `configure` | from the seed: analytics off, automatic updates off; model, effort and mode in the chat composer (find in pilot) |
 | `launch` | `open -b com.dcouple.pane` |
