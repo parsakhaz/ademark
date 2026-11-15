@@ -1218,7 +1218,22 @@ Purpose: facts about each ADE's remote access, with no score: what the numbers a
 Every fact carries a source: a link, or "observed in vX.Y.Z on YYYY-MM-DD", as in Track F. Output:
 `results/<run-id>/remote-fit.json`. The facts of every ADE in the field, measured or not, are in ADES.md §5.
 
-### 6.2 What Track R does not measure
+### 6.2 One machine: a test instance as the peer
+
+Without a second computer, the peer can be an isolated test instance of the ADE on the client machine, with its own
+data folder, home folder and credentials. The ADE's own pairing flow links the harness with it; the result is the
+profile the adapter reads (Pane: `ADEMARK_PANE_PROFILE`). Then:
+
+- `relay` rows measure client → relay → client. Running the test instance on each of the vendor's relay regions in
+  turn shows what each region adds. They do not measure a link between two places.
+- `direct` rows run over the machine's own network stack. They show what the ADE's direct helper and server add,
+  not a network.
+- R4 also stops the test instance: `--freeze-peer-pids <pid>` stops that process and every process under it with
+  the client side. Never pass the pid of the ADE the operator uses.
+
+The manifest says so in `peer_description`. One-machine rows never compare with two-machine rows.
+
+### 6.3 What Track R does not measure
 
 - Bandwidth and large transfers. The probe and the preview page are small on purpose: they measure latency.
 - A phone. The client is a Mac. Phone apps reach the peer through the same paths, but their own overhead is not counted.

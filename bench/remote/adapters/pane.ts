@@ -47,6 +47,9 @@ export function findProfile(config: unknown, peer: string): RelayProfile {
 }
 
 function profileFor(peer: string): RelayProfile {
+  // A linked-computer profile in a file of its own, for a test instance paired by the harness (TESTS.md §6.2).
+  const own = process.env.ADEMARK_PANE_PROFILE;
+  if (own) return findProfile({ remoteDaemon: { client: { profiles: [JSON.parse(readFileSync(own, "utf8"))] } } }, peer);
   const file = join(paneDir(), "config.json");
   if (!existsSync(file)) throw new Error(`pane: no config at ${file}; link this computer with the peer first`);
   return findProfile(JSON.parse(readFileSync(file, "utf8")), peer);

@@ -34,6 +34,8 @@ export interface RemoteRunOptions {
   /** R4: how the client side of each path is dropped. Missing = R4 is written as not measured. */
   freeze?: Freeze;
   freezeSeconds: number;
+  /** R4, for a peer on the client machine (a test instance): its processes, stopped with the client side. */
+  freezePeerPids?: number[];
   /** R4: how many drops. Each drop measures every open path at once. */
   freezeRounds: number;
   writer?: RunWriter;
@@ -243,7 +245,7 @@ async function runR4(opts: RemoteRunOptions, ctx: RemoteContext, rows: RowMaker,
         return null;
       }
     }));
-    const pids = live.flatMap(([, open]) => open.clientPids?.() ?? []);
+    const pids = [...live.flatMap(([, open]) => open.clientPids?.() ?? []), ...(opts.freezePeerPids ?? [])];
     await opts.freeze.apply(pids, opts.freezeSeconds);
     const resumed = performance.now();
     await Promise.all(live.map(async ([id, open], index) => {
@@ -261,7 +263,8 @@ async function runR4(opts: RemoteRunOptions, ctx: RemoteContext, rows: RowMaker,
         if (await answers(open, request, status)) seconds = (performance.now() - resumed) / 1000;
         else await sleep(250);
       }
-      const notes = `process-level drop for ${opts.freezeSeconds} s (${open.clientPids?.().length ?? 0} client processes stopped); ${attempts} attempts; path observed: ${open.observed() ?? "unknown"}`;
+      const peer = opts.freezePeerPids?.length ? ", and the peer's processes" : "";
+      const notes = `process-level drop for ${opts.freezeSeconds} s (the client side${peer}); ${attempts} attempts; path observed: ${open.observed() ?? "unknown"}`;
       if (seconds === null) rows.write("R4", id, rep, null, "s", started, { valid: false, invalid_reason: "did not answer within 120 s", notes });
       else rows.write("R4", id, rep, seconds, "s", started, { notes });
       rows.write("R4", `${id}:kept`, rep, keptAnswered ? 1 : 0, "0/1", started, { notes: "1 = the connection open through the drop still answered" });
@@ -349,7 +352,7 @@ export async function runRemote(opts: RemoteRunOptions): Promise<string> {
     warm_samples: opts.warmSamples,
     cold_samples: opts.coldSamples,
     client_load_avg: { start: loadAtStart, end: loadavg().map(round1) },
-    drop: opts.freeze ? { kind: opts.freeze.kind, seconds: opts.freezeSeconds, rounds: opts.freezeRounds } : null,
+    drop: opts.freeze ? { kind: opts.freeze.kind, seconds: opts.freezeSeconds, rounds: opts.freezeRounds, peer_stopped: (opts.freezePeerPids?.length ?? 0) > 0 } : null,
     started_at: opts.runId,
   }, null, 2)}\n`);
   return summarizeRun(writer.runDir).path;

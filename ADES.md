@@ -868,7 +868,7 @@ sources do not say. Vendors can correct a fact through the right of reply (METHO
 | Capy | computer paired to the account; transport not stated | "encrypted in transit and at rest" | unknown | cloud preview URLs | yes | not measured |
 | Claude desktop (Code tab) and Claude Code Remote Control | Anthropic's servers; the local session polls over outbound HTTPS | Anthropic: TLS ends at Anthropic and the transcript is stored there | not documented | none documented | yes | not measured |
 | Codex app | vendor relay ("secure relay layer"), SSH hosts | not stated | not documented | not documented | yes | not measured |
-| Pane (proposed, #23) | vendor relay (open source, self-hostable), QUIC direct path, Tailscale optional | vendor-stated: only the two ends; the relay routes by TLS server name and does not decrypt. Observed in 2.4.225 on 2026-11-15: the client pins the peer's key, and the relay path works with that pin | yes | yes, every listening port (observed) | yes (observed) | measured: `direct`, `relay`; `vpn` not measured (Tailscale was off) |
+| Pane (proposed, #23) | vendor relay (open source, self-hostable), QUIC direct path, Tailscale optional | vendor-stated: only the two ends; the relay routes by TLS server name and does not decrypt. Observed in 2.4.225 on 2026-11-15: the client pins the peer's key, and the relay path works with that pin | yes | yes, every listening port (observed) | yes (observed) | two machines: `direct`, `relay` (R2, R3, R5); `vpn` and R4 pending. One machine (§6.2 of TESTS.md): `direct`, `relay` on regions us, eu, asia, with R4. Data in `data/remote/` |
 
 Sources, all read on 2026-11-15:
 

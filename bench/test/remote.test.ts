@@ -9,7 +9,7 @@ import type { ResultRow } from "../core/contracts.ts";
 import { Http1Connection, parseResponse } from "../remote/http1.ts";
 import type { RemoteAdapter } from "../remote/contracts.ts";
 import { findProfile, parseTailscalePing } from "../remote/adapters/pane.ts";
-import { processFreeze } from "../remote/cut.ts";
+import { processFreeze, withDescendants } from "../remote/cut.ts";
 import { runRemote } from "../remote/run.ts";
 
 describe("parseResponse", () => {
@@ -175,6 +175,11 @@ describe("setup readers", () => {
   test("reads Tailscale's route from its ping", () => {
     expect(parseTailscalePing("pong from devbox (100.65.125.102) via 203.0.113.9:41641 in 33ms")).toEqual({ ms: 33, via: "direct" });
     expect(parseTailscalePing("pong from devbox (100.65.125.102) via DERP(sfo) in 61ms")).toEqual({ ms: 61, via: "derp DERP(sfo)" });
+  });
+
+  test("a peer's process tree is every process under its root", () => {
+    const table = "  1     0\n 10     1\n 11    10\n 12    11\n 20     1\n";
+    expect(withDescendants([10], table).sort((a, b) => a - b)).toEqual([10, 11, 12]);
   });
 
   test("a process-level drop stops a process and resumes it", async () => {

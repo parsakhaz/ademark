@@ -16,10 +16,28 @@ function signal(pid: number, sig: "SIGSTOP" | "SIGCONT"): boolean {
   }
 }
 
+/** `pids` and every process under them, from one `ps` read. */
+export function withDescendants(pids: readonly number[], table: string = Bun.spawnSync(["ps", "-axo", "pid=,ppid="]).stdout.toString()): number[] {
+  const children = new Map<number, number[]>();
+  for (const line of table.split("\n")) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+    if (!pid || ppid === undefined) continue;
+    children.set(ppid, [...(children.get(ppid) ?? []), pid]);
+  }
+  const out = new Set<number>();
+  const visit = (pid: number) => {
+    if (out.has(pid)) return;
+    out.add(pid);
+    for (const child of children.get(pid) ?? []) visit(child);
+  };
+  pids.forEach(visit);
+  return [...out];
+}
+
 export const processFreeze: Freeze = {
   kind: "process",
   async apply(pids, seconds) {
-    const stopped = pids.filter((pid) => signal(pid, "SIGSTOP"));
+    const stopped = withDescendants(pids).filter((pid) => signal(pid, "SIGSTOP"));
     try {
       await new Promise((done) => setTimeout(done, seconds * 1000));
     } finally {

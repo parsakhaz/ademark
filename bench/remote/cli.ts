@@ -12,12 +12,13 @@ Usage:
   ademark remote facts --ade <id>
   ademark remote run --ade <id> --peer <name> [--peer-description <text>] [--paths direct,relay,vpn] [--tests R2,R3,R5,R4,R6]
                      [--rounds 3] [--warm 100] [--cold 20] [--preview-port 47801]
-                     [--freeze] [--freeze-seconds 30] [--freeze-rounds 5] [--run-id <id>]
+                     [--freeze] [--freeze-seconds 30] [--freeze-rounds 5] [--freeze-peer-pids <pid,...>] [--run-id <id>]
   ademark remote record --ade <id> --run-id <id> --test R1 --value <s> [--rep <n>] [--notes <text>]
 
 run measures every path the ADE offers to the peer, round by round, and writes results/<run-id>/ like run does.
 R4 needs --freeze: a process-level drop. The ADE's client-side helpers get SIGSTOP for --freeze-seconds and the
-harness leaves its open connections unread, then SIGCONT. No network interface changes. Without it R4 is not measured. R5 needs bench/remote/peer-server.mjs running on the peer.
+harness leaves its open connections unread, then SIGCONT. No network interface changes. Without it R4 is not measured.
+--freeze-peer-pids also stops a peer that runs on this machine (a test instance), with every process under it. R5 needs bench/remote/peer-server.mjs running on the peer.
 record writes one manual row, for R1 (pair to first session, timed from a screen recording).
 `;
 
@@ -86,6 +87,7 @@ export async function cmdRemote(args: string[]): Promise<number> {
           freeze: args.includes("--freeze") ? processFreeze : undefined,
           freezeSeconds: num(args, "--freeze-seconds", 30),
           freezeRounds: num(args, "--freeze-rounds", 5),
+          freezePeerPids: flag(args, "--freeze-peer-pids")?.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0),
         });
         console.log(`wrote ${summary}`);
         return 0;
