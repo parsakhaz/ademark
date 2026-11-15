@@ -9,7 +9,7 @@ import { quantile } from "../core/stats.ts";
 import { summarizeRun } from "../core/summarize.ts";
 import { Http1Connection } from "./http1.ts";
 import type { OpenPath, PathId, RemoteAdapter, RemoteContext, RemotePath } from "./contracts.ts";
-import type { Cut } from "./cut.ts";
+import type { Freeze } from "./cut.ts";
 
 export const R_TESTS = ["R2", "R3", "R5", "R4", "R6"] as const;
 export type RTest = (typeof R_TESTS)[number];
@@ -30,11 +30,11 @@ export interface RemoteRunOptions {
   coldSamples: number;
   /** R5: the peer port where `peer-server.mjs` listens. */
   previewPort: number;
-  /** R4: how the client loses its network. Missing = R4 is written as not measured. */
-  cut?: Cut;
-  cutSeconds: number;
-  /** R4: how many cuts. Each cut measures every open path at once. */
-  cutRounds: number;
+  /** R4: how the client side of each path is dropped. Missing = R4 is written as not measured. */
+  freeze?: Freeze;
+  freezeSeconds: number;
+  /** R4: how many drops. Each drop measures every open path at once. */
+  freezeRounds: number;
   writer?: RunWriter;
   log?(message: string): void;
 }
@@ -202,56 +202,71 @@ async function r5(open: OpenPath, opts: RemoteRunOptions, ctx: RemoteContext): P
 
 const MEASURE: Record<(typeof PER_PATH)[number], (open: OpenPath, opts: RemoteRunOptions, ctx: RemoteContext) => Promise<Measured>> = { R2: r2, R3: r3, R5: r5 };
 
+/** Resolves with the result of `work`, or false after `ms`. */
+function within(work: Promise<boolean>, ms: number): Promise<boolean> {
+  return Promise.race([work.catch(() => false), sleep(ms).then(() => false)]);
+}
+
 /** One probe on a new connection, given up after 2 s. */
 async function answers(open: OpenPath, request: Awaited<ReturnType<RemoteAdapter["probe"]>>, status: number): Promise<boolean> {
-  const attempt = Http1Connection.open(open.endpoint).then(async (conn) => {
+  return await within(Http1Connection.open(open.endpoint).then(async (conn) => {
     try {
       return (await conn.send(request)).status === status;
     } finally {
       conn.close();
     }
-  });
-  return await Promise.race([attempt.catch(() => false), sleep(2000).then(() => false)]);
+  }), 2000);
 }
 
 const R4_LIMIT_MS = 120_000;
 
-/** R4: one cut of the client's network serves every open path; after it, each path is probed until it answers. */
+/**
+ * R4: one process-level drop serves every open path. Each path keeps one connection open through the drop; after it,
+ * the kept connection is tried once, then new connections every 250 ms until one answers.
+ */
 async function runR4(opts: RemoteRunOptions, ctx: RemoteContext, rows: RowMaker, opened: Map<PathId, OpenPath>): Promise<void> {
-  if (!opts.cut) {
-    for (const id of opened.keys()) rows.write("R4", id, 1, null, "s", Date.now(), { valid: false, invalid_reason: "not measured: no --cut given" });
+  if (!opts.freeze) {
+    for (const id of opened.keys()) rows.write("R4", id, 1, null, "s", Date.now(), { valid: false, invalid_reason: "not measured: no --freeze given" });
     return;
   }
   const request = await opts.adapter.probe(ctx);
-  const ctxLog = ctx.log;
-  for (let rep = 1; rep <= opts.cutRounds; rep++) {
+  const status = opts.adapter.probeStatus;
+  for (let rep = 1; rep <= opts.freezeRounds; rep++) {
     const started = Date.now();
     const live = [...opened.entries()];
-    const before = await Promise.all(live.map(([, open]) => answers(open, request, opts.adapter.probeStatus)));
-    await opts.cut.apply(opts.cutSeconds);
-    const restored = performance.now();
+    const kept = await Promise.all(live.map(async ([, open]) => {
+      try {
+        const conn = await Http1Connection.open(open.endpoint);
+        return (await conn.send(request)).status === status ? conn : (conn.close(), null);
+      } catch {
+        return null;
+      }
+    }));
+    const pids = live.flatMap(([, open]) => open.clientPids?.() ?? []);
+    await opts.freeze.apply(pids, opts.freezeSeconds);
+    const resumed = performance.now();
     await Promise.all(live.map(async ([id, open], index) => {
-      if (!before[index]) {
-        rows.write("R4", id, rep, null, "s", started, { valid: false, invalid_reason: "the path did not answer before the cut" });
+      const conn = kept[index];
+      if (!conn) {
+        rows.write("R4", id, rep, null, "s", started, { valid: false, invalid_reason: "the path did not answer before the drop" });
         return;
       }
-      let attempts = 0;
-      let seconds: number | null = null;
-      while (performance.now() - restored < R4_LIMIT_MS) {
+      const keptAnswered = await within(conn.send(request).then((r) => r.status === status), 2000);
+      conn.close();
+      let attempts = 1;
+      let seconds: number | null = keptAnswered ? (performance.now() - resumed) / 1000 : null;
+      while (seconds === null && performance.now() - resumed < R4_LIMIT_MS) {
         attempts++;
-        if (await answers(open, request, opts.adapter.probeStatus)) {
-          seconds = (performance.now() - restored) / 1000;
-          break;
-        }
-        await sleep(250);
+        if (await answers(open, request, status)) seconds = (performance.now() - resumed) / 1000;
+        else await sleep(250);
       }
-      const notes = `${opts.cut!.kind} cut for ${opts.cutSeconds} s; ${attempts} attempts; path observed: ${open.observed() ?? "unknown"}`;
+      const notes = `process-level drop for ${opts.freezeSeconds} s (${open.clientPids?.().length ?? 0} client processes stopped); ${attempts} attempts; path observed: ${open.observed() ?? "unknown"}`;
       if (seconds === null) rows.write("R4", id, rep, null, "s", started, { valid: false, invalid_reason: "did not answer within 120 s", notes });
       else rows.write("R4", id, rep, seconds, "s", started, { notes });
+      rows.write("R4", `${id}:kept`, rep, keptAnswered ? 1 : 0, "0/1", started, { notes: "1 = the connection open through the drop still answered" });
       rows.write("R4", `${id}:recovered`, rep, seconds === null ? 0 : 1, "0/1", started, { notes: "1 = answered within 120 s with no user action" });
-      ctxLog(`R4 ${id} cut ${rep}: ${seconds === null ? "no answer within 120 s" : `answered ${round1(seconds)} s after the network came back`}`);
+      ctx.log(`R4 ${id} drop ${rep}: ${seconds === null ? "no answer within 120 s" : `answered ${round1(seconds)} s after resume${keptAnswered ? " on the kept connection" : " on a new connection"}`}`);
     }));
-    // The client settles before the next cut, so each cut starts from a connected state.
     await sleep(15_000);
   }
 }
@@ -330,7 +345,7 @@ export async function runRemote(opts: RemoteRunOptions): Promise<string> {
     rounds: opts.rounds,
     warm_samples: opts.warmSamples,
     cold_samples: opts.coldSamples,
-    cut: opts.cut ? { kind: opts.cut.kind, seconds: opts.cutSeconds } : null,
+    drop: opts.freeze ? { kind: opts.freeze.kind, seconds: opts.freezeSeconds, rounds: opts.freezeRounds } : null,
     started_at: opts.runId,
   }, null, 2)}\n`);
   return summarizeRun(writer.runDir).path;

@@ -9,7 +9,7 @@ import type { ResultRow } from "../core/contracts.ts";
 import { Http1Connection, parseResponse } from "../remote/http1.ts";
 import type { RemoteAdapter } from "../remote/contracts.ts";
 import { findProfile, parseTailscalePing } from "../remote/adapters/pane.ts";
-import { wifiDevice } from "../remote/cut.ts";
+import { processFreeze } from "../remote/cut.ts";
 import { runRemote } from "../remote/run.ts";
 
 describe("parseResponse", () => {
@@ -124,8 +124,8 @@ describe("runRemote", () => {
       warmSamples: 5,
       coldSamples: 3,
       previewPort: 1,
-      cutSeconds: 30,
-      cutRounds: 1,
+      freezeSeconds: 30,
+      freezeRounds: 1,
       writer: new RunWriter(root),
       log: () => {},
     });
@@ -139,7 +139,7 @@ describe("runRemote", () => {
       "R3 relay:p50 1 valid", "R3 relay:p50 2 valid",
       "R3 relay:p95 1 valid", "R3 relay:p95 2 valid",
       "R3 vpn 1 not measured: VPN is off on the client",
-      "R4 relay 1 not measured: no --cut given",
+      "R4 relay 1 not measured: no --freeze given",
       "R4 vpn 1 not measured: VPN is off on the client",
       "R5 relay:first 1 not supported",
       "R5 vpn 1 not measured: VPN is off on the client",
@@ -177,8 +177,15 @@ describe("setup readers", () => {
     expect(parseTailscalePing("pong from devbox (100.65.125.102) via DERP(sfo) in 61ms")).toEqual({ ms: 61, via: "derp DERP(sfo)" });
   });
 
-  test("finds the Wi-Fi device in networksetup's listing", () => {
-    const listing = "Hardware Port: Ethernet\nDevice: en4\nEthernet Address: 0\n\nHardware Port: Wi-Fi\nDevice: en0\nEthernet Address: 1\n";
-    expect(wifiDevice(listing)).toBe("en0");
+  test("a process-level drop stops a process and resumes it", async () => {
+    const child = Bun.spawn(["sleep", "30"]);
+    const state = () => Bun.spawnSync(["ps", "-o", "stat=", "-p", String(child.pid)]).stdout.toString().trim()[0];
+    const drop = processFreeze.apply([child.pid], 0.5);
+    await new Promise((done) => setTimeout(done, 200));
+    const during = state();
+    await drop;
+    const after = state();
+    child.kill();
+    expect([during, after]).toEqual(["T", "S"]);
   });
 });

@@ -1123,7 +1123,7 @@ R2 to R5 rows are "not measured". SSH and plain HTTP paths use the same client w
 | Path | Floor |
 |---|---|
 | `relay` | TCP connect time from the client to the relay (the client's leg only) |
-| `direct` | The round trip the ADE's direct helper reports for its own connection, when it reports one; else none |
+| `direct` | none: a peer-to-peer transport cannot be timed apart from the ADE's own helper. The row says `not measured` |
 | `vpn` | `tailscale ping` to the peer (or the VPN's own ping); its route, direct or a Tailscale relay (DERP), goes in the row's notes |
 
 R2 minus the floor of the same path is an upper bound of what the ADE adds on that path.
@@ -1164,26 +1164,30 @@ Value: `<path>:p50` and `<path>:p95` of the 20 samples, in ms. Receipt: one CSV 
 
 ### R4. Reconnect
 
-Purpose: after the client's network drops, how long until the peer answers again, and whether that happens with no
-user action.
+Purpose: after the client side of a remote path stops for a while, as when a laptop loses its network, how long
+until the peer answers again, and whether that happens with no user action.
 
-Steps: with every path open and answering, turn the client's Wi-Fi off for 30 s (`--cut wifi --apply`, through
-`networksetup`, no root), then on. The clock starts when the default route is back on Wi-Fi. Each path is then probed
-on a new connection every 250 ms, each attempt given up after 2 s, until it answers or 120 s pass. A path whose ADE
-helper must re-dial (a QUIC path) is measured through that helper. 5 cuts, 15 s apart, after the rounds of R2, R3
-and R5. Each cut measures every path at once, so the cuts are not tied to rounds. A client on a wired network
-cannot run R4 this way; its rows say `not measured`.
+R4 is a **process-level drop**, not a network drop. It touches no network interface, so other apps on the client
+keep working and the harness keeps its own control. Steps, with every path open and answering:
 
-Value: `<path>` in s, and `<path>:recovered` as 1 when it answered within 120 s with no user action, else 0. A path
-that did not answer before the cut gets no row value.
+1. On each path, open one connection and send one probe. This connection stays open through the drop.
+2. Stop the client side of every path for 30 s: `SIGSTOP` to each client-side process the adapter names for the path
+   (`clientPids()`, for example the ADE's direct helper), and no reads or writes on the kept connections. Then `SIGCONT`.
+3. The clock starts at `SIGCONT`. Send one probe on the kept connection, given up after 2 s. If it does not answer,
+   send a probe on a new connection every 250 ms, each given up after 2 s, until one answers or 120 s pass.
 
-The cut stops every app on the client, the harness's own network included, so R4 runs only with `--apply`, in a block
-of its own, with nothing else on the client using the network. Without `--cut`, R4 is written as
-`not measured: no --cut given`.
+5 drops, 15 s apart, after the rounds of R2, R3 and R5. Each drop measures every path at once, so drops are not tied
+to rounds. Run with `--freeze`; without it, R4 is written as `not measured: no --freeze given`.
 
-R4 measures the transport: the ADE's relay, its direct helper and its server. Whether the app's own window shows the
-session again is a separate reading from the app's status (its log or its UI), written in the row's notes when the
-adapter can read it. **(validate in pilot: that app-level reading for each ADE.)**
+Value: `<path>` in s; `<path>:kept`, 1 when the kept connection still answered; `<path>:recovered`, 1 when the path
+answered within 120 s with no user action. A path that did not answer before the drop gets no value.
+
+What it shows and what it does not: a stopped client sends no keepalives and reads nothing, so a peer, relay or
+QUIC helper that times out idle connections drops them, and the ADE's own reconnect logic (helper re-dial, backoff)
+runs after the resume. A real network loss also changes addresses and routes, which a process-level drop does not.
+Whether the app's own window shows the session again is a separate reading from the app's status (its log or its
+UI), written in the row's notes when the adapter can read it. **(validate in pilot: that app-level reading for each
+ADE.)**
 
 ### R5. Remote Preview
 

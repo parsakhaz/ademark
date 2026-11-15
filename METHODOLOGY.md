@@ -126,7 +126,7 @@ floor: the round trip of its transport with nothing of the ADE on it.
 | R1 | Pair to Session | Start of pairing to the first echoed keystroke on the new device (manual, from a recording) | s, lower | 3 |
 | R2 | Round Trip | One authenticated request to the peer and its answer, on an open connection | ms p50/p95, lower | 100 per path per round |
 | R3 | Cold Connect | A new connection, TLS and the first authenticated answer | ms p50/p95, lower | 20 per path per round |
-| R4 | Reconnect | After the client's Wi-Fi is off for 30 s: time until the peer answers again, and whether it does with no user action | s, lower; recovered yes or no | 5 cuts |
+| R4 | Reconnect | After a process-level drop (the client side of each path stopped for 30 s with SIGSTOP): time until the peer answers again, and whether it does with no user action | s, lower; recovered yes or no | 5 drops |
 | R5 | Remote Preview | Open a dev server on the peer from the client: first page, then pages on the same stream | ms, lower | 50 per path per round |
 | R6 | Remote Fit | Mechanism, who can read the traffic, pairing, per-device revoke, previews, works without a VPN | facts | once |
 

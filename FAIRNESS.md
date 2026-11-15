@@ -439,3 +439,11 @@ whatever it shows.
 - **What we did:** Every row names its run, and the manifest names both machines. Paths are compared only inside one
   run, round by round, and each path carries its floor, so what the ADE adds is visible apart from geography.
 - **Verify:** METHODOLOGY.md §9; `results/<run>/manifest.json`.
+
+### R-4. "A stopped process is not a dropped network."
+- **Verdict:** Valid.
+- **What we did:** R4 says it is a process-level drop. It stops the client side of each path for 30 s, so idle
+  timeouts on the peer, the relay and any helper fire, and the ADE's reconnect logic runs after the resume. It does not
+  change addresses or routes, as a real network loss does. It was chosen because it needs no root and leaves every
+  other app on the client running.
+- **Verify:** TESTS.md R4.

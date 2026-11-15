@@ -18,6 +18,8 @@ export interface OpenPath {
   endpoint: Endpoint;
   /** What the path really used, when the ADE reports it (for example "direct" or "relay" from its helper). */
   observed(): string | null;
+  /** R4: client-side processes that carry this path (the ADE's helper), stopped during the drop. */
+  clientPids?(): number[];
   /** The same path with nothing of the ADE on it: a round trip of the transport alone, in ms (TESTS.md R2 floor). */
   floorMs?(): Promise<number | null>;
   close(): Promise<void>;

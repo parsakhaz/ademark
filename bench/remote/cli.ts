@@ -2,7 +2,7 @@
 import { RunWriter } from "../core/results.ts";
 import type { PathId } from "./contracts.ts";
 import { REMOTE_ADAPTERS, getRemoteAdapter } from "./adapters/registry.ts";
-import { wifiCut } from "./cut.ts";
+import { processFreeze } from "./cut.ts";
 import { R_TESTS, runRemote, type RTest } from "./run.ts";
 
 export const REMOTE_HELP = `ademark remote: Track R, remote access between two machines (TESTS.md §6)
@@ -12,12 +12,12 @@ Usage:
   ademark remote facts --ade <id>
   ademark remote run --ade <id> --peer <name> [--peer-description <text>] [--paths direct,relay,vpn] [--tests R2,R3,R5,R4,R6]
                      [--rounds 3] [--warm 100] [--cold 20] [--preview-port 47801]
-                     [--cut wifi --apply] [--cut-seconds 30] [--cut-rounds 5] [--run-id <id>]
+                     [--freeze] [--freeze-seconds 30] [--freeze-rounds 5] [--run-id <id>]
   ademark remote record --ade <id> --run-id <id> --test R1 --value <s> [--rep <n>] [--notes <text>]
 
 run measures every path the ADE offers to the peer, round by round, and writes results/<run-id>/ like run does.
-R4 needs --cut wifi --apply: it turns the client's Wi-Fi off for --cut-seconds, which cuts every app on the client.
-Without it R4 is written as not measured. R5 needs bench/remote/peer-server.mjs running on the peer.
+R4 needs --freeze: a process-level drop. The ADE's client-side helpers get SIGSTOP for --freeze-seconds and the
+harness leaves its open connections unread, then SIGCONT. No network interface changes. Without it R4 is not measured. R5 needs bench/remote/peer-server.mjs running on the peer.
 record writes one manual row, for R1 (pair to first session, timed from a screen recording).
 `;
 
@@ -72,9 +72,6 @@ export async function cmdRemote(args: string[]): Promise<number> {
         if (!peer) throw new Error("run needs --peer <name>");
         const tests = (flag(args, "--tests")?.split(",") ?? [...R_TESTS]) as RTest[];
         for (const t of tests) if (!(R_TESTS as readonly string[]).includes(t)) throw new Error(`unknown test ${t}; Track R runs ${R_TESTS.join(", ")}`);
-        const cutKind = flag(args, "--cut");
-        if (cutKind !== undefined && cutKind !== "wifi") throw new Error("--cut takes wifi");
-        if (cutKind !== undefined && !args.includes("--apply")) throw new Error("--cut wifi cuts every app on this machine; add --apply to mean it");
         const summary = await runRemote({
           adapter,
           peer,
@@ -86,9 +83,9 @@ export async function cmdRemote(args: string[]): Promise<number> {
           warmSamples: num(args, "--warm", 100),
           coldSamples: num(args, "--cold", 20),
           previewPort: num(args, "--preview-port", 47801),
-          cut: cutKind === "wifi" ? wifiCut() : undefined,
-          cutSeconds: num(args, "--cut-seconds", 30),
-          cutRounds: num(args, "--cut-rounds", 5),
+          freeze: args.includes("--freeze") ? processFreeze : undefined,
+          freezeSeconds: num(args, "--freeze-seconds", 30),
+          freezeRounds: num(args, "--freeze-rounds", 5),
         });
         console.log(`wrote ${summary}`);
         return 0;

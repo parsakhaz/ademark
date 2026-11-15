@@ -91,7 +91,6 @@ interface Helper {
   child: ChildProcess;
   port: number;
   path: string | null;
-  rttMs: number | null;
 }
 
 /** Starts `pane-direct connect` and waits until it reports the direct path, or `timeoutMs`. */
@@ -101,15 +100,12 @@ async function startHelper(bin: string, endpoint: DirectEndpoint, ctx: RemoteCon
   for (const url of endpoint.relayUrls) args.push("--relay-url", url);
   // stdin stays open: the helper exits when its parent closes it, as in Pane.
   const child = spawn(bin, args, { stdio: ["pipe", "pipe", "pipe"] });
-  const helper: Helper = { child, port: 0, path: null, rttMs: null };
+  const helper: Helper = { child, port: 0, path: null };
   createInterface({ input: child.stdout! }).on("line", (line) => {
     try {
-      const event = JSON.parse(line) as { t: string; port?: number; path?: string; rttMs?: number; message?: string };
+      const event = JSON.parse(line) as { t: string; port?: number; path?: string; message?: string };
       if (event.t === "ready" && event.port) helper.port = event.port;
-      if (event.t === "path") {
-        helper.path = event.path ?? null;
-        helper.rttMs = event.rttMs ?? null;
-      }
+      if (event.t === "path") helper.path = event.path ?? null;
       if (event.t === "error") ctx.log(`pane-direct: ${event.message ?? line}`);
     } catch {
       ctx.log(`pane-direct: ${line}`);
@@ -189,9 +185,9 @@ function paths(profile: RelayProfile): RemotePath[] {
         const helper = await startHelper(bin, await directEndpoint(profile), ctx);
         return {
           endpoint: { host: "127.0.0.1", port: helper.port, servername: relay.servername, pin: relay.pin },
+          // No floor: the QUIC transport cannot be timed without Pane's own helper, and the adapter never times.
           observed: () => helper.path,
-          // pane-direct measures the QUIC round trip itself every 2 s; its last value is the floor of this path.
-          floorMs: async () => helper.rttMs,
+          clientPids: () => (helper.child.pid ? [helper.child.pid] : []),
           close: async () => {
             helper.child.kill();
           },
