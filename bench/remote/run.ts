@@ -1,6 +1,7 @@
 // Track R runner (TESTS.md §6): two machines, one ADE, every path it offers, the same request on each.
 // `bun bench/cli.ts remote run --ade <id> --peer <name>` writes rows.jsonl, receipts and summary.json like Tracks A to C.
 import { writeFileSync } from "node:fs";
+import { loadavg } from "node:os";
 import { join } from "node:path";
 import type { Family, ResultRow, TestId } from "../core/contracts.ts";
 import { defaultMachineId, parseHardware } from "../core/manifest.ts";
@@ -276,6 +277,8 @@ export async function runRemote(opts: RemoteRunOptions): Promise<string> {
   const ctx: RemoteContext = { peer: opts.peer, log };
   const writer = (opts.writer ?? new RunWriter()).open(opts.runId);
   const rows = new RowMaker(writer, opts.adapter.id, opts.adapter.family, await opts.adapter.version(), machineId());
+  // Load on the client changes TLS and timer jitter; the manifest records it at the start and the end.
+  const loadAtStart = loadavg().map(round1);
   const all = await opts.adapter.paths(ctx);
   const chosen: RemotePath[] = opts.paths ? all.filter((p) => opts.paths!.includes(p.id)) : all;
 
@@ -345,6 +348,7 @@ export async function runRemote(opts: RemoteRunOptions): Promise<string> {
     rounds: opts.rounds,
     warm_samples: opts.warmSamples,
     cold_samples: opts.coldSamples,
+    client_load_avg: { start: loadAtStart, end: loadavg().map(round1) },
     drop: opts.freeze ? { kind: opts.freeze.kind, seconds: opts.freezeSeconds, rounds: opts.freezeRounds } : null,
     started_at: opts.runId,
   }, null, 2)}\n`);
